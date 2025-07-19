@@ -21,9 +21,10 @@ public class FileManager {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split("\\|");
-                if (parts.length >= 5) {
+                if (parts.length >= 6) {
                     User user = new User(parts[0], parts[1], parts[2], parts[3]);
                     user.setCurrency(parts[4]);
+                    user.setUserId(parts[5]);
                     users.add(user);
                 }
             }
@@ -42,8 +43,8 @@ public class FileManager {
                         user.getPassword(),
                         user.getName(),
                         user.getEmail(),
-                        user.getCurrency()
-                );
+                        user.getCurrency(),
+                        user.getUserId() != null ? user.getUserId() : "");  // userId as 6th field
                 bw.write(line);
                 bw.newLine();
             }
@@ -51,6 +52,7 @@ public class FileManager {
             System.out.println("❌ Error saving users: " + e.getMessage());
         }
     }
+
 
     // EXPENSE FILE METHODS
     public static List<Expense> loadExpenses() {

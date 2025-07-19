@@ -10,6 +10,15 @@ public class User {
     private String email;
     private String currency;
     private List<String> categories;
+    private String userId;
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
 
     public User(String username, String password, String name, String email) {
         this.username = username;

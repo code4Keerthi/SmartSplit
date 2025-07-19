@@ -4,6 +4,7 @@ import model.Expense;
 import model.Group;
 import model.Repayment;
 
+import java.io.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -46,7 +47,10 @@ public class ExpenseService {
         Repayment repayment = new Repayment(fromUser, toUser, amount, LocalDateTime.now());
         repayments.add(repayment);
 
-        // Also add a repayment entry to all expenses that involve both users
+        // ✅ Adjust debt after repayment
+        updateBalancesAfterRepayment(fromUser, toUser, amount);
+
+        // Add a repayment log to each relevant expense
         for (Expense e : expenses) {
             List<String> people = Arrays.asList(e.getParticipants());
             if (people.contains(fromUser) && people.contains(toUser)) {
@@ -57,7 +61,10 @@ public class ExpenseService {
         }
 
         System.out.printf("✅ Repayment of ₹%.2f from %s to %s recorded.\n", amount, fromUser, toUser);
+
+        saveRepaymentsToFile();  // Save repayment to file
     }
+
 
 
     public List<Expense> getGroupExpenses(String groupId) {
@@ -70,62 +77,64 @@ public class ExpenseService {
         return result;
     }
 
-    public void showGroupSummary(String groupId) {
-        Group group = getGroupById(groupId);
-        if (group == null) {
-            System.out.println("❌ Group not found.");
-            return;
-        }
-
-        // ✅ Pairwise balances: balances[from][to] = how much `from` owes `to`
-        Map<String, Map<String, Double>> balances = new HashMap<>();
-
-        for (Expense e : getGroupExpenses(groupId)) {
-            List<String> participants = Arrays.asList(e.getParticipants());
-            double share = e.getTotalAmount() / participants.size();
-
-            for (String payer : e.getPaidBy().keySet()) {
-                double paidAmount = e.getPaidBy().get(payer);
-
-                for (String participant : participants) {
-                    if (participant.equals(payer)) continue;
-
-                    double individualShare = share;
-                    balances.putIfAbsent(participant, new HashMap<>());
-                    Map<String, Double> owesMap = balances.get(participant);
-                    owesMap.put(payer, owesMap.getOrDefault(payer, 0.0) + individualShare);
-                }
-            }
-        }
-        for (Repayment r : repayments) {
-            String from = r.getFromUser();
-            String to = r.getToUser();
-            double amount = r.getAmount();
-
-            if (group.getMembers().contains(from) && group.getMembers().contains(to)) {
-                balances.putIfAbsent(from, new HashMap<>());
-                Map<String, Double> owesMap = balances.get(from);
-                owesMap.put(to, owesMap.getOrDefault(to, 0.0) - amount);
-            }
-        }
-
-
-        // Apply repayments that occurred within the group
-//        for (Repayment r : repayments) {
-//            if (group.getMembers().contains(r.getFromUser()) && group.getMembers().contains(r.getToUser())) {
-//                balances.put(r.getFromUser(), balances.getOrDefault(r.getFromUser(), 0.0) - r.getAmount());
-//                balances.put(r.getToUser(), balances.getOrDefault(r.getToUser(), 0.0) + r.getAmount());
+//    public void showGroupSummary(String groupId) {
+//        Group group = getGroupById(groupId);
+//        if (group == null) {
+//            System.out.println("❌ Group not found.");
+//            return;
+//        }
+//
+//        // 1️⃣ Initialize netBalances
+//        Map<String, Double> netBalances = new HashMap<>();
+//        for (String member : group.getMembers()) {
+//            netBalances.put(member, 0.0);
+//        }
+//
+//        // 2️⃣ Process all expenses in this group
+//        for (Expense e : getGroupExpenses(groupId)) {
+//            List<String> participants = Arrays.asList(e.getParticipants());
+//            double totalAmount = e.getTotalAmount();
+//            double perHead = totalAmount / participants.size();
+//
+//            for (String participant : participants) {
+//                netBalances.put(participant, netBalances.getOrDefault(participant, 0.0) - perHead);
+//            }
+//
+//            for (Map.Entry<String, Double> entry : e.getPaidBy().entrySet()) {
+//                String payer = entry.getKey();
+//                double amount = entry.getValue();
+//                netBalances.put(payer, netBalances.getOrDefault(payer, 0.0) + amount);
 //            }
 //        }
-
-  //      System.out.println("\n\033[1;36mGroup Summary for " + group.getGroupName() + " (" + groupId + ")");
-
-        // Step 2: Split creditors and debtors
-//        PriorityQueue<Map.Entry<String, Double>> creditors = new PriorityQueue<>((a, b) -> Double.compare(b.getValue(), a.getValue()));
-//        PriorityQueue<Map.Entry<String, Double>> debtors = new PriorityQueue<>((a, b) -> Double.compare(a.getValue(), b.getValue()));
 //
-//        for (Map.Entry<String, Map<String, Double>> entry : balances.entrySet()) {
-//            double amount = entry.getValue().size();
+//        // 3️⃣ Apply repayments
+//        // 3️⃣ Apply repayments safely
+//        for (Repayment r1 : repayments) {
+//            if (group.getMembers().contains(r1.getFromUser()) && group.getMembers().contains(r1.getToUser())) {
+//                Double fromBal = netBalances.get(r1.getFromUser());
+//                Double toBal = netBalances.get(r1.getToUser());
+//
+//                // 3️⃣ Apply repayments
+//                for (Repayment r : repayments) {
+//                    if (group.getMembers().contains(r.getFromUser()) && group.getMembers().contains(r.getToUser())) {
+//                        netBalances.put(r.getFromUser(), netBalances.getOrDefault(r.getFromUser(), 0.0) - r.getAmount());
+//                        netBalances.put(r.getToUser(), netBalances.getOrDefault(r.getToUser(), 0.0) + r.getAmount());
+//                    }
+//                }
+//
+//
+//            }
+//        }
+//
+//
+//        // 4️⃣ Match debtors to creditors cleanly
+//        System.out.println("\n\033[1;36mGroup Summary for " + group.getGroupName() + " (" + groupId + ")\033[0m");
+//
+//        PriorityQueue<Map.Entry<String, Double>> creditors = new PriorityQueue<>((a, b) -> Double.compare(b.getValue(), a.getValue()));
+//        PriorityQueue<Map.Entry<String, Double>> debtors = new PriorityQueue<>(Comparator.comparingDouble(Map.Entry::getValue));
+//
+//        for (Map.Entry<String, Double> entry : netBalances.entrySet()) {
+//            double amount = entry.getValue();
 //            if (Math.abs(amount) < 0.01) continue;
 //            if (amount > 0) {
 //                creditors.offer(Map.entry(entry.getKey(), amount));
@@ -138,28 +147,91 @@ public class ExpenseService {
 //            System.out.println("✅ All group members are settled up!");
 //            return;
 //        }
+//
+//        while (!debtors.isEmpty() && !creditors.isEmpty()) {
+//            Map.Entry<String, Double> debtor = debtors.poll();
+//            Map.Entry<String, Double> creditor = creditors.poll();
+//
+//            double debt = -debtor.getValue();
+//            double credit = creditor.getValue();
+//            double settled = Math.min(debt, credit);
+//
+//            System.out.printf("💸 %s owes %s: ₹%.2f\n", debtor.getKey(), creditor.getKey(), settled);
+//
+//            double newDebtorBal = debtor.getValue() + settled;
+//            double newCreditorBal = creditor.getValue() - settled;
+//
+//            if (Math.abs(newDebtorBal) > 0.01)
+//                debtors.offer(Map.entry(debtor.getKey(), newDebtorBal));
+//            if (Math.abs(newCreditorBal) > 0.01)
+//                creditors.offer(Map.entry(creditor.getKey(), newCreditorBal));
+//        }
+//    }
 
-        // Step 3: Match debts
-        System.out.println("\n\033[1;36mGroup Summary for " + group.getGroupName() + " (" + groupId + ")");
-        boolean anyOwed = false;
 
-        for (String from : balances.keySet()) {
-            for (Map.Entry<String, Double> entry : balances.get(from).entrySet()) {
-                String to = entry.getKey();
-                double amount = entry.getValue();
-                if (amount > 0.01) {
-                    //Math.round(amount * 100.0) / 100.0
-                    anyOwed = true;
-                    System.out.printf("💸 %s owes %s: ₹%.2f\n", from, to, amount);
+
+    // File path to save repayments
+    private final String REPAYMENT_FILE = "data/repayments.txt";
+
+    // Call this after every repayment
+    public void saveRepaymentsToFile() {
+        try (PrintWriter writer = new PrintWriter(new FileWriter("data/repayments.txt"))) {
+            for (Repayment r : repayments) {
+                writer.printf("%s,%s,%.2f,%s%n",
+                        r.getFromUser(),
+                        r.getToUser(),
+                        r.getAmount(),
+                        r.getTimestamp());
+            }
+        } catch (IOException e) {
+            System.out.println("❌ Failed to save repayments: " + e.getMessage());
+        }
+    }
+
+
+
+
+    public void loadRepaymentsFromFile() {
+        repayments.clear();
+        File file = new File(REPAYMENT_FILE);
+        if (!file.exists()) {
+            System.out.println("🔍 No repayment file found.");
+            return;
+        }
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length == 4) {
+                    String from = parts[0];
+                    String to = parts[1];
+                    double amount = Double.parseDouble(parts[2]);
+                    LocalDateTime time = LocalDateTime.parse(parts[3]);
+                    repayments.add(new Repayment(from, to, amount, time));
+
+                    // ✅ Apply repayment logic immediately
+                    updateBalancesAfterRepayment(from, to, amount);
                 }
             }
+            System.out.println("✅ Repayments loaded from file: " + repayments.size());
+        } catch (IOException e) {
+            System.out.println("❌ Failed to load repayments: " + e.getMessage());
         }
-
-        if (!anyOwed) {
-            System.out.println("🎉 All group members are settled up!");
-        }
-
     }
+
+
+    private void updateBalancesAfterRepayment(String fromUser, String toUser, double amount) {
+        for (Expense e : expenses) {
+            List<String> participants = Arrays.asList(e.getParticipants());
+            if (!participants.contains(fromUser) || !participants.contains(toUser)) continue;
+
+            String log = "🔁 Repayment of ₹" + amount + " from " + fromUser + " to " + toUser +
+                    " loaded from file on " + LocalDate.now();
+            e.getUpdateLogs().add(log);
+        }
+    }
+
 
 
     public List<Expense> getUserExpenses(String username) {
@@ -189,15 +261,16 @@ public class ExpenseService {
             }
         }
         // ✅ Apply repayment adjustments
+        // ✅ Apply repayment adjustments only for existing balances
         for (Repayment r : repayments) {
-            if (r.getFromUser().equals(username)) {
-                // You paid someone → you owe more
-                netBalances.put(r.getToUser(), netBalances.getOrDefault(r.getToUser(), 0.0) - r.getAmount());
-            } else if (r.getToUser().equals(username)) {
-                // Someone paid you → they owe you less
-                netBalances.put(r.getFromUser(), netBalances.getOrDefault(r.getFromUser(), 0.0) + r.getAmount());
+            if (netBalances.containsKey(r.getToUser())) {
+                netBalances.put(r.getToUser(), netBalances.get(r.getToUser()) - r.getAmount());
+            }
+            if (netBalances.containsKey(r.getFromUser())) {
+                netBalances.put(r.getFromUser(), netBalances.get(r.getFromUser()) + r.getAmount());
             }
         }
+
 
 //        // Apply repayments to adjust balances
 //        for (Repayment r : repayments) {

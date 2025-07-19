@@ -19,13 +19,26 @@ public class ConsoleUI {
 
     public ConsoleUI() {
         users = FileManager.loadUsers();
+        for (User u : users) {
+            if (u.getUserId() != null && u.getUserId().startsWith("USR")) {
+                try {
+                    int num = Integer.parseInt(u.getUserId().substring(3));
+                    userCounter = Math.max(userCounter, num + 1);
+                } catch (Exception ignored) {}
+            }
+        }
         List<Expense> expenses = FileManager.loadExpenses();
         List<Group> groups = FileManager.loadGroups();
         expenseService = new ExpenseService(expenses, groups);
+        expenseService.loadRepaymentsFromFile();
     }
 
     public void start() {
-        System.out.println("\033[1;35m\n===== 💡 WELCOME TO SMARTSPLIT =====");
+//        System.out.println("✅ Startup Check:");
+//        System.out.println("→ Expenses loaded: " + expenseService.getExpenses().size());
+//        System.out.println("→ Repayments loaded: (You can’t access directly but can log from ExpenseService)");
+
+        System.out.println("\033[1;35m\n===== 💡 WELCOME TO SMARTSPLIT 💡 =====");
 
         while (true) {
             System.out.println("\033[1;36m\n1. Sign Up 📝\n2. Login 🔐\n3. Exit 👋");
@@ -47,40 +60,95 @@ public class ConsoleUI {
             }
         }
     }
+    private static int userCounter = 1; // Load from file if needed
 
-    private void signUp() {
-        System.out.println("\n\033[1;32m===== CREATE ACCOUNT =====");
+    public String generateUserId() {
+        return String.format("USR%03d", userCounter++);
+    }
+//    private void signUp() {
+//        System.out.println("\n\033[1;32m===== CREATE ACCOUNT =====");
+//
+//        System.out.print("\033[0;35mFull Name: \033[0;37m");
+//        String name = sc.nextLine();
+//
+//        String email;
+//        while (true) {
+//            System.out.print("\033[0;35mEmail: \033[0;37m");
+//            email = sc.nextLine().trim();
+//            if (isValidEmail(email)) break;
+//            System.out.println("\033[1;31m❌ Invalid email format. Please try again (e.g., abc@example.com)");
+//            for(User u : users){
+//                if(u.getEmail().equals(email)){
+//                    System.out.println("\033[1;31m❌ User with this email already exists.");
+//                }
+//            }
+//        }
+//
+//        System.out.print("\033[0;35mUsername: \033[0;37m");
+//        String uname = sc.nextLine();
+//
+//        for (User u : users) {
+//            if (u.getUsername().equals(uname)) {
+//                System.out.println("\033[1;31m❌ Username already exists.");
+//                return;
+//            }
+//        }
+//
+//        System.out.print("\033[0;35mPassword: \033[0;37m");
+//        String pwd = sc.nextLine();
+//
+//        User user = new User(uname, pwd, name, email);
+//        user.setUserId(generateUserId());
+//        users.add(user);
+//        FileManager.saveUsers(users);
+//        System.out.println("\033[1;32m✅ Account created successfully!");
+//    }
+private void signUp() {
+    System.out.println("\n\033[1;32m===== CREATE ACCOUNT =====");
 
-        System.out.print("\033[0;35mFull Name: \033[0;37m");
-        String name = sc.nextLine();
+    System.out.print("\033[0;35mFull Name: \033[0;37m");
+    String name = sc.nextLine();
 
-        String email;
-        while (true) {
-            System.out.print("\033[0;35mEmail: \033[0;37m");
-            email = sc.nextLine().trim();
-            if (isValidEmail(email)) break;
+    String email;
+    while (true) {
+        System.out.print("\033[0;35mEmail: \033[0;37m");
+        email = sc.nextLine().trim();
+
+        if (!isValidEmail(email)) {
             System.out.println("\033[1;31m❌ Invalid email format. Please try again (e.g., abc@example.com)");
+            continue;
         }
 
-        System.out.print("\033[0;35mUsername: \033[0;37m");
-        String uname = sc.nextLine();
-
+        boolean exists = false;
         for (User u : users) {
-            if (u.getUsername().equals(uname)) {
-                System.out.println("\033[1;31m❌ Username already exists.");
-                return;
+            if (u.getEmail().equalsIgnoreCase(email)) {
+                System.out.println("\033[1;31m❌ User with this email already exists.");
+                exists = true;
+                break;
             }
         }
-
-        System.out.print("\033[0;35mPassword: \033[0;37m");
-        String pwd = sc.nextLine();
-
-        User user = new User(uname, pwd, name, email);
-        users.add(user);
-        FileManager.saveUsers(users);
-        System.out.println("\033[1;32m✅ Account created successfully!");
+        if (!exists) break;
     }
 
+    System.out.print("\033[0;35mUsername: \033[0;37m");
+    String uname = sc.nextLine();
+
+    for (User u : users) {
+        if (u.getUsername().equals(uname)) {
+            System.out.println("\033[1;31m❌ Username already exists.");
+            return;
+        }
+    }
+
+    System.out.print("\033[0;35mPassword: \033[0;37m");
+    String pwd = sc.nextLine();
+
+    User user = new User(uname, pwd, name, email);
+    user.setUserId(generateUserId());
+    users.add(user);
+    FileManager.saveUsers(users);
+    System.out.println("\033[1;32m✅ Account created successfully!");
+}
     private boolean isValidEmail(String email) {
         return email.contains("@") && email.contains(".") &&
                 email.indexOf('@') < email.lastIndexOf('.') &&
@@ -140,7 +208,10 @@ public class ConsoleUI {
 
         System.out.print("\033[0;35mExpense Name: \033[0;37m");
         String name = sc.nextLine();
-
+        while(name.isEmpty()){
+            System.out.println("Expense name should not be empty");
+            name=sc.nextLine();
+        }
         System.out.print("\033[0;35mDescription(optional): \033[0;37m");
         String desc = sc.nextLine();
 
@@ -176,7 +247,7 @@ public class ConsoleUI {
             }
 
             if (userGroups.isEmpty()) {
-                System.out.println("\033[1;36m😶 You're not part of any groups.");
+                System.out.println("\033[1;35m😶 You're not part of any groups.");
                 System.out.print("\033[0;36m❓ Do you want to create a new group now? (y/n): ");
                 String create = sc.nextLine().trim().toLowerCase();
 
@@ -199,7 +270,7 @@ public class ConsoleUI {
             }
 
             System.out.println("\033[1;36m\n📂 How do you want to proceed?");
-            System.out.println("1. 📁 Add to existing group");
+            System.out.println("\033[1;35m1. 📁 Add to existing group");
             System.out.println("2. 🆕 Create a new group");
             System.out.print("Choose option: ");
             String groupChoice = sc.nextLine().trim();
@@ -238,11 +309,11 @@ public class ConsoleUI {
             if (option.equals("1")) {
                 participants = new String[]{ currentUser.getUsername() }; // Only self
             } else if (option.equals("2")) {
-                System.out.print("\033[0;35mEnter other user's username: \033[0;37m");
+                System.out.print("\033[0;35mEnter other user's name: \033[0;37m");
                 String other = sc.nextLine().trim();
                 participants = new String[]{ currentUser.getUsername(), other };
             } else if (option.equals("3")) {
-                System.out.print("\033[0;35mEnter usernames (comma-separated): \033[0;37m");
+                System.out.print("\033[0;35mEnter names (comma-separated): \033[0;37m");
                 participants = sc.nextLine().split(",");
                 for (int i = 0; i < participants.length; i++) {
                     participants[i] = participants[i].trim();
@@ -277,7 +348,7 @@ public class ConsoleUI {
                 System.out.print("\033[0;35mEnter (payer amount) or 'done': \033[0;37m");
                 String line = sc.nextLine().trim();
 
-                if (line.equalsIgnoreCase("done")) {
+                if (line.equalsIgnoreCase("done"  )) {
                     if (Math.abs(totalPaid - amount) < 0.01) break;
                     System.out.printf("\033[1;31m❌ Total paid so far: ₹%.2f. Still need ₹%.2f more.\n", totalPaid, amount - totalPaid);
                     continue;
@@ -288,8 +359,38 @@ public class ConsoleUI {
                     System.out.println("\033[1;31m❌ Invalid format. Use: username amount");
                     continue;
                 }
+                String inputName = parts[0];
+                String payer;
 
-                String payer = parts[0].equalsIgnoreCase("me") ? currentUser.getUsername() : parts[0];
+                if (inputName.equalsIgnoreCase("me")) {
+                    payer = currentUser.getUsername();
+                } else {
+                    // Check by username or ID
+                    User found = null;
+                    for (User u : users) {
+                        if (u.getUsername().equalsIgnoreCase(inputName) || u.getUserId().equalsIgnoreCase(inputName)) {
+                            found = u;
+                            break;
+                        }
+                    }
+
+                    if (found == null) {
+                        System.out.println("\033[1;31m❌ No such user found with username or ID: " + inputName);
+                        continue;
+                    }
+
+                    // If it's a group expense, ensure they're in the group
+                    if (groupId != null) {
+                        Group group = expenseService.getGroupById(groupId);
+                        if (group != null && !group.getMembers().contains(found.getUsername())) {
+                            System.out.println("\033[1;31m❌ " + found.getUsername() + " is not in the group " + group.getGroupName());
+                            continue;
+                        }
+                    }
+
+                    payer = found.getUsername(); // map back to username
+                }
+
                 double amt;
                 try {
                     amt = Double.parseDouble(parts[1]);
@@ -298,9 +399,28 @@ public class ConsoleUI {
                     continue;
                 }
 
+                if (groupId != null && !Arrays.asList(participants).contains(payer)) {
+                    System.out.println("❌ " + payer + " is not a participant of this group.");
+                    continue;
+                }
+
                 paidBy.put(payer, paidBy.getOrDefault(payer, 0.0) + amt);
                 totalPaid += amt;
+                if (totalPaid > amount) {
+                    System.out.println("❌ Total paid exceeds the required amount.");
+                    System.out.print("🔁 Do you want to restart payment entry? (y/n): ");
+                    String restart = sc.nextLine().trim().toLowerCase();
+                    if (restart.equals("y")) {
+                        paidBy.clear();
+                        totalPaid = 0;
+                        continue; // restart loop from top
+                    } else {
+                        System.out.println("❌ Cannot proceed with overpayment. Try again.");
+                        return; // or break and exit expense flow
+                    }
+                }
                 System.out.printf("\033[1;32m✔ Recorded: %s paid ₹%.2f (Total Paid: ₹%.2f)\n", payer, amt, totalPaid);
+
             }
 
             if (Math.abs(totalPaid - amount) > 0.01) {
@@ -448,12 +568,13 @@ public class ConsoleUI {
             return;
         }
 
-        // Update the expense object
+        double oldAmount = expense.getTotalAmount();
+        Map<String, Double> oldPaidBy = new HashMap<>(expense.getPaidBy());
+
         expense.setPaidBy(newPaidBy);
         expense.setTotalAmount(totalPaid);
 
-        double oldAmount = expense.getTotalAmount();
-        Map<String, Double> oldPaidBy = new HashMap<>(expense.getPaidBy());
+        // Update the expense object
 
         StringBuilder logEntry = new StringBuilder();
         logEntry.append("Updated on ").append(dtf.format(LocalDateTime.now())).append("\n");
@@ -551,12 +672,26 @@ public class ConsoleUI {
 
             if (isPayingSomeone) {
                 fromUser = currentUser.getUsername();
-                System.out.print("\033[0;35mEnter username you repaid to: \033[0;37m");
+                System.out.print("\033[0;35mEnter username or ID you repaid to: \033[0;37m");
                 toUser = sc.nextLine().trim();
+                User toUserObj = getUserByUsernameOrId(toUser);
+                if (toUserObj == null) {
+                    System.out.println("\033[1;31m❌ No such user found.");
+                    continue;
+                }
+                toUser = toUserObj.getUsername();
+
             } else {
                 toUser = currentUser.getUsername();
                 System.out.print("\033[0;35mEnter username who repaid you: \033[0;37m");
                 fromUser = sc.nextLine().trim();
+                User toUserObj = getUserByUsernameOrId(fromUser);
+                if (toUserObj == null) {
+                    System.out.println("\033[1;31m❌ No such user found.");
+                    continue;
+                }
+                toUser = toUserObj.getUsername();
+
             }
 
             if (fromUser.equalsIgnoreCase(toUser)) {
@@ -602,16 +737,16 @@ public class ConsoleUI {
             System.out.println("\n\033[1;35m===== GROUP MENU =====");
             System.out.println("\033[1;36m1. ➕ Create Group");
             System.out.println("2. 📋 View My Groups");
-            System.out.println("3. 📊 Group Summary");
-            System.out.println("4. 🔙 Back to Main Menu");
+            //System.out.println("3. 📊 Group Summary");
+            System.out.println("3. 🔙 Back to Main Menu");
             System.out.print("\033[1;37mChoose option: ");
             String choice = sc.nextLine();
 
             switch (choice) {
                 case "1": createGroup(); break;
                 case "2": listGroups(); break;
-                case "3": viewGroupSummary(); break;
-                case "4": return;
+                //case "3": viewGroupSummary(); break;
+                case "3": return;
                 default: System.out.println("\033[1;31m❌ Invalid choice!");
             }
         }
@@ -623,22 +758,59 @@ public class ConsoleUI {
 
         Group group = new Group(name);
         group.addMember(currentUser.getUsername());
-
-        System.out.print("\033[0;35mAdd members (comma-separated usernames): \033[0;37m");
+//
+//        System.out.print("\033[0;35mAdd members (comma-separated usernames): \033[0;37m");
+//        String[] members = sc.nextLine().split(",");
+//        for (String m : members) {
+//            String member = m.trim();
+//            if (member.equalsIgnoreCase("me")) {
+//                member = currentUser.getUsername();
+//            }
+//            group.addMember(member);
+//        }
+        System.out.print("\033[0;35mAdd members (comma-separated usernames or IDs): \033[0;37m");
         String[] members = sc.nextLine().split(",");
+
         for (String m : members) {
-            String member = m.trim();
-            if (member.equalsIgnoreCase("me")) {
-                member = currentUser.getUsername();
+            String memberInput = m.trim();
+            if (memberInput.equalsIgnoreCase("me")) {
+                memberInput = currentUser.getUsername();
             }
-            group.addMember(member);
+
+            User matched = null;
+            for (User u : users) {
+                if (u.getUsername().equalsIgnoreCase(memberInput) || u.getUserId().equalsIgnoreCase(memberInput)) {
+                    matched = u;
+                    break;
+                }
+            }
+
+            if (matched == null) {
+                System.out.println("\033[1;31m❌ No user found with: " + memberInput + ". Skipping.");
+                continue;
+            }
+
+            if (group.getMembers().contains(matched.getUsername())) {
+                System.out.println("\033[1;33m⚠️ " + matched.getUsername() + " already added.");
+            } else {
+                group.addMember(matched.getUsername());
+                System.out.println("\033[1;32m✔ Added: " + matched.getUsername() + " (" + matched.getUserId() + ")");
+            }
         }
+
 
 
         expenseService.createGroup(group);
         FileManager.saveGroups(expenseService.getGroups());
 
         System.out.println("\033[1;32m✅ Group created with ID: " + group.getGroupId());
+    }
+
+    private User getUserByUsername(String username) {
+        for (User u : users) {
+            if (u.getUsername().equalsIgnoreCase(username)) return u;
+        }
+        return null;
     }
 
     private void listGroups() {
@@ -648,19 +820,66 @@ public class ConsoleUI {
 
         for (Group g : groups) {
             if (g.getMembers().contains(currentUser.getUsername())) {
-                System.out.println(g);
+                System.out.println("👥 Group: " + g.getGroupName() + " (" + g.getGroupId() + ")");
+                System.out.println("    Members:");
+                for (String username : g.getMembers()) {
+                    User u = getUserByUsername(username);
+                    if (u != null) {
+                        System.out.printf("    - %s (%s)\n", u.getUsername(), u.getUserId());
+                    } else {
+                        System.out.printf("    - %s (❌ Unknown User)\n", username);
+                    }
+                }
+                System.out.println();
                 found = true;
             }
         }
+//        for (Group g : groups) {
+//            if (g.getMembers().contains(currentUser.getUsername())) {
+//                System.out.print("👥 Group: " + g.getName() + " (" + g.getGroupId() + ") - Members: [");
+//
+//                List<String> userDetails = new ArrayList<>();
+//                for (String uname : g.getMembers()) {
+//                    User matched = null;
+//                    for (User u : users) {
+//                        if (u.getUsername().equals(uname)) {
+//                            matched = u;
+//                            break;
+//                        }
+//                    }
+//
+//                    if (matched != null) {
+//                        userDetails.add(matched.getUsername() + " (" + matched.getUserId() + ")");
+//                    } else {
+//                        userDetails.add(uname + " (Unknown ID)");
+//                    }
+//                }
+//
+//                System.out.println(String.join(", ", userDetails) + "]");
+//                found = true;
+//            }
+//        }
+
+
 
         if (!found) System.out.println("😶 You're not part of any groups.");
     }
 
-    private void viewGroupSummary() {
-        listGroups();
-        System.out.print("\033[0;35mEnter Group ID to view summary: \033[0;37m");
-        String gid = sc.nextLine();
-        expenseService.showGroupSummary(gid);
+//    private void viewGroupSummary() {
+//        listGroups();
+//        System.out.print("\033[0;35mEnter Group ID to view summary: \033[0;37m");
+//        String gid = sc.nextLine();
+//        //expenseService.showGroupSummary(gid);
+//    }
+
+
+    private User getUserByUsernameOrId(String input) {
+        for (User u : users) {
+            if (u.getUsername().equalsIgnoreCase(input) || u.getUserId().equalsIgnoreCase(input)) {
+                return u;
+            }
+        }
+        return null;
     }
 
     private void exit() {

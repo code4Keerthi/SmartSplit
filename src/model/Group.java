@@ -16,6 +16,17 @@ public class Group {
         this.groupId = generateGroupId(name);
         this.members = new ArrayList<>();
     }
+    private Map<String, String> grpmembers = new HashMap<>(); // userId -> username
+
+    public void addMember(User user) {
+        grpmembers.put(user.getUserId(), user.getUsername());
+    }
+    public boolean hasMember(String input) {
+        return grpmembers.containsKey(input) || grpmembers.containsValue(input);
+    }
+    public String getUsernameByInput(String input) {
+        return grpmembers.getOrDefault(input, input); // if input is ID return name
+    }
 
     private String generateGroupId(String name) {
         String prefix = name.replaceAll("\\s+", "").toUpperCase();
